@@ -1101,6 +1101,9 @@ class BoltAPI:
 
                 # Serialize response to tuple format
                 response_tuple = await serialize_response(result, _meta)
+
+                if not isinstance(result, tuple):
+                    return result
                 # Convert to MiddlewareResponse for middleware compatibility
                 return MiddlewareResponse.from_tuple(response_tuple)
 

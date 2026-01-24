@@ -32,7 +32,7 @@ logger = logging.getLogger("django_bolt")
 
 try:
     from asgiref.sync import iscoroutinefunction, markcoroutinefunction, sync_to_async
-    from django.http import HttpRequest, HttpResponse, QueryDict
+    from django.http import HttpRequest, HttpResponse, QueryDict, StreamingHttpResponse
     from django.utils.module_loading import import_string
 
     DJANGO_AVAILABLE = True
@@ -45,6 +45,7 @@ except ImportError:
     sync_to_async = None
     iscoroutinefunction = None
     markcoroutinefunction = None
+    StreamingHttpResponse= None
 
 # Lazy singleton for empty QueryDict - avoids requiring Django settings at import time
 _EMPTY_QUERYDICT = None
@@ -711,6 +712,8 @@ def _to_django_response(response: Response) -> HttpResponse:
     # Fast path: if already a Django HttpResponse, return as-is
     if isinstance(response, HttpResponse):
         return response
+    status_code = getattr(response, "status_code", 200)
+    headers = getattr(response, "headers", {})
 
     # Handle different response types
     if hasattr(response, "body"):
@@ -722,9 +725,6 @@ def _to_django_response(response: Response) -> HttpResponse:
         content = response.content if isinstance(response.content, bytes) else str(response.content).encode()
     else:
         content = b""
-
-    status_code = getattr(response, "status_code", 200)
-    headers = getattr(response, "headers", {})
 
     django_response = HttpResponse(
         content=content,
@@ -759,7 +759,7 @@ def _to_bolt_response(django_response: HttpResponse) -> MiddlewareResponse:
     return MiddlewareResponse(
         status_code=django_response.status_code,
         headers=headers,
-        body=django_response.content,
+        body=django_response.content if hasattr(django_response, "content") else django_response.streaming_content,
         set_cookies=set_cookies,
     )
 
